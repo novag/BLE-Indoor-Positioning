@@ -13,13 +13,12 @@ import com.nexenio.bleindoorpositioning.ble.beacon.BeaconManager;
 import com.nexenio.bleindoorpositioning.ble.beacon.IBeacon;
 import com.nexenio.bleindoorpositioning.location.Location;
 import com.nexenio.bleindoorpositioning.location.provider.IBeaconLocationProvider;
-import com.polidea.rxandroidble.RxBleClient;
-import com.polidea.rxandroidble.scan.ScanResult;
-import com.polidea.rxandroidble.scan.ScanSettings;
+import com.polidea.rxandroidble2.RxBleClient;
+import com.polidea.rxandroidble2.scan.ScanResult;
+import com.polidea.rxandroidble2.scan.ScanSettings;
 
 import androidx.annotation.NonNull;
-import rx.Observer;
-import rx.Subscription;
+import io.reactivex.disposables.Disposable;
 
 /**
  * Created by steppschuh on 24.11.17.
@@ -38,7 +37,7 @@ public class BluetoothClient {
     private BeaconManager beaconManager = BeaconManager.getInstance();
 
     private RxBleClient rxBleClient;
-    private Subscription scanningSubscription;
+    private Disposable scanningDisposable;
 
     private BluetoothClient() {
 
@@ -75,23 +74,10 @@ public class BluetoothClient {
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .build();
 
-        instance.scanningSubscription = instance.rxBleClient.scanBleDevices(scanSettings)
-                .subscribe(new Observer<ScanResult>() {
-                    @Override
-                    public void onCompleted() {
-
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        Log.e(TAG, "Bluetooth scanning error", e);
-                    }
-
-                    @Override
-                    public void onNext(ScanResult scanResult) {
-                        instance.processScanResult(scanResult);
-                    }
-                });
+        instance.scanningDisposable = instance.rxBleClient.scanBleDevices(scanSettings)
+                .subscribe(
+                        instance::processScanResult,
+                        throwable -> Log.e(TAG, "Bluetooth scanning error", throwable));
     }
 
     public static void stopScanning() {
@@ -101,12 +87,12 @@ public class BluetoothClient {
 
         BluetoothClient instance = getInstance();
         Log.d(TAG, "Stopping to scan for beacons");
-        instance.scanningSubscription.unsubscribe();
+        instance.scanningDisposable.dispose();
     }
 
     public static boolean isScanning() {
-        Subscription subscription = getInstance().scanningSubscription;
-        return subscription != null && !subscription.isUnsubscribed();
+        Disposable disposable = getInstance().scanningDisposable;
+        return disposable != null && !disposable.isDisposed();
     }
 
     public static boolean isBluetoothEnabled() {
